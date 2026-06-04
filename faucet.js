@@ -128,7 +128,17 @@ async function runFaucet() {
                 await client.sendChat(MidstateUtils.textToIndices("done 🚀"), req.nonce).catch(()=>{});
             } catch (e) {
                 console.error("   ❌ Transaction failed:", e.message);
-                await client.sendChat(MidstateUtils.textToIndices("error"), req.nonce).catch(()=>{});
+                
+                // If it was just a slow block, put them back in the queue and retry!
+                if (e.message.includes("Timed out")) {
+                    console.log("   ⏳ Network variance (slow block). Retrying in 10 seconds...");
+                    queue.unshift(req); // Put their request back at the front of the line
+                    await new Promise(r => setTimeout(r, 10000)); 
+                    continue; 
+                } else {
+                    // For all other hard errors, send the error chat
+                    await client.sendChat(MidstateUtils.textToIndices("error"), req.nonce).catch(()=>{});
+                }
             }
         }
         isProcessing = false;
